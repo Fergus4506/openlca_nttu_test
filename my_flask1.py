@@ -3,29 +3,35 @@ import olca_schema as o
 import olca_ipc as ipc
 
 app = Flask(__name__)
-client = ipc.Client(8081)  # 連線到 openLCA IPC Server
+client = ipc.Client(3001)  # 連線到 openLCA IPC Server
 
-# 固定模型與影響評估方法 UUID
-PRODUCT_SYSTEM_ID = "724bff37-cc16-4af4-a059-a1948f61af93"
-IMPACT_METHOD_ID = "fb0bfc55-63f1-4c38-8167-25be95473fee"
+
 
 # 將原本的計算流程封裝成函式
 def calculate_openlca(distance, factor, load, amount):
     # 取得模型
-    model = client.get(o.ProductSystem, PRODUCT_SYSTEM_ID)
-    method = client.get(o.ImpactMethod, IMPACT_METHOD_ID)
+    model = client.get(o.ProductSystem, name="廚餘處理量")
+    method = client.get(o.ImpactMethod, name="IPCC 2021 AR6")
+
+    print("Model ID:", model.id)
+    print("Method ID:", method.id)
 
     # 取得參數
     parameters = client.get_parameters(o.ProductSystem, model.id)
+    
+    mass_group_descriptor = client.find(o.UnitGroup, "Units of mass")
+    mass_group = client.get(o.UnitGroup, mass_group_descriptor.id)
+    ton_unit = next((unit for unit in mass_group.units if unit.name == 't'), None)
 
     # 建立計算設定
     setup = o.CalculationSetup(
         target=model,
         amount=amount,
+        unit=ton_unit,
         impact_method=method,
         parameters=[
-            o.ParameterRedef(name=parameters[0].name, value=distance, context=parameters[0].context),
-            o.ParameterRedef(name=parameters[1].name, value=factor, context=parameters[1].context),
+            o.ParameterRedef(name=parameters[0].name, value=factor, context=parameters[0].context),
+            o.ParameterRedef(name=parameters[1].name, value=distance, context=parameters[1].context),
             o.ParameterRedef(name=parameters[2].name, value=load, context=parameters[2].context),
         ],
     )
@@ -71,4 +77,4 @@ def calculate():
     })
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5001)
